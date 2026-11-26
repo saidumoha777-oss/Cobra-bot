@@ -1,0 +1,8 @@
+{
+  "pfpImage": "./assets/pfp.jpg",
+  "approveTimeoutSeconds": 20,
+  "promptMessage": "Hi! This bot would like to confirm if you are ready to Active this session. Reply YES to approve or NO to skip. You have 20 seconds.",
+  "approvedMessage": "✅ session updated. Thanks for approving!",
+  "declinedMessage": "👍 No problem,your session is not confirmed.",
+  "timeoutMessage": "⏱️ No response received in time. session will not be changed."
+}
