@@ -5,33 +5,37 @@ const {
 } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
-const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 
 const settings = JSON.parse(fs.readFileSync(path.join(__dirname, 'config', 'settings.json'), 'utf-8'));
 
-// Tracks users currently waiting on an approval reply: jid -> { timer, resolved }
 const pendingApprovals = new Map();
+let latestQRDataURL = null;
+
+function getLatestQR() {
+  return latestQRDataURL;
+}
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'session'));
 
   const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true
+    auth: state
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log('Scan this QR code with WhatsApp:');
-      qrcode.generate(qr, { small: true });
+      latestQRDataURL = await QRCode.toDataURL(qr);
+      console.log('[cobra-bot] New QR generated. Visit /qr on your Render URL to scan.');
     }
 
     if (connection === 'open') {
       console.log('[cobra-bot] Connected successfully.');
+      latestQRDataURL = null;
       const ownJid = sock.user.id;
       askForApproval(sock, ownJid);
     }
@@ -55,7 +59,7 @@ async function startBot() {
       '';
 
     const pending = pendingApprovals.get(sender);
-    if (!pending) return; // not waiting on this user
+    if (!pending) return;
 
     const reply = textBody.trim().toLowerCase();
 
@@ -70,7 +74,6 @@ async function startBot() {
       pendingApprovals.delete(sender);
       await sock.sendMessage(sender, { text: settings.declinedMessage });
     }
-    // any other reply is ignored, user can still reply yes/no until timeout
   });
 }
 
@@ -110,3 +113,5 @@ async function applyProfilePicture(sock, jid) {
 }
 
 startBot();
+
+module.exports = { getLatestQR };
