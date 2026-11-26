@@ -11,17 +11,39 @@ const settings = JSON.parse(fs.readFileSync(path.join(__dirname, 'config', 'sett
 
 const pendingApprovals = new Map();
 let latestQRDataURL = null;
+let sockInstance = null;
+let isRegistered = false;
 
 function getLatestQR() {
   return latestQRDataURL;
+}
+
+function getSock() {
+  return sockInstance;
+}
+
+function isSockRegistered() {
+  return isRegistered;
+}
+
+async function requestPairingCode(phoneNumber) {
+  if (!sockInstance) throw new Error('Bot not initialized yet');
+  if (isRegistered) throw new Error('Already paired');
+  const cleaned = phoneNumber.replace(/[^0-9]/g, '');
+  const code = await sockInstance.requestPairingCode(cleaned);
+  return code;
 }
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'session'));
 
   const sock = makeWASocket({
-    auth: state
+    auth: state,
+    printQRInTerminal: false
   });
+
+  sockInstance = sock;
+  isRegistered = sock.authState.creds.registered;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -30,12 +52,12 @@ async function startBot() {
 
     if (qr) {
       latestQRDataURL = await QRCode.toDataURL(qr);
-      console.log('[cobra-bot] New QR generated. Visit /qr on your Render URL to scan.');
     }
 
     if (connection === 'open') {
       console.log('[cobra-bot] Connected successfully.');
       latestQRDataURL = null;
+      isRegistered = true;
       const ownJid = sock.user.id;
       askForApproval(sock, ownJid);
     }
@@ -114,4 +136,4 @@ async function applyProfilePicture(sock, jid) {
 
 startBot();
 
-module.exports = { getLatestQR };
+module.exports = { getLatestQR, requestPairingCode, isSockRegistered };
